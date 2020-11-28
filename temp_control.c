@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <signal.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -21,17 +22,37 @@
 // 读取磁盘库
 #include <sys/vfs.h>
 #include <unistd.h>
+#include <time.h>
 
 #define CPU_USAGE_PATH "/proc/stat"
 #define HARDWARE_PATH "/proc/device-tree/model"
 #define TEMP_PATH "/sys/class/thermal/thermal_zone0/temp"
 #define MAX_SIZE 32
+// 退出处理
+void onexit(int sig)
+{
+	ssd1306_begin(SSD1306_SWITCHCAPVCC, SSD1306_I2C_ADDRESS);
+	//   ssd1306_stopscroll();
+	//	ssd1306_display();
+	//	delay(5000);
+
+	ssd1306_clearDisplay();
+	ssd1306_display();
+	printf("%s", "exit ok");
+	exit(0);
+}
+void reload(int sig)
+{
+	ssd1306_clearDisplay();
+	printf("%s", "reload ok");
+}
 
 int main(void)
 {
+
 	int readed_ip = 0;
 	int count = 0;
-	int rgbclose = 1;
+	int rgbclose = 1; // 1 close rgb,0 open rgb
 	int fd_temp;
 	int fd_hardware;	   // 保存查询到的树莓派硬件版本信息
 	int raspi_version = 0; // 4:树莓派4B， 3:树莓派3B/3B+  0：无法识别或其他版本
@@ -60,6 +81,9 @@ int main(void)
 	int fd_i2c;
 	wiringPiSetup();
 	fd_i2c = wiringPiI2CSetup(0x0d);
+	signal(SIGTERM, onexit);
+	signal(SIGINT, onexit);
+
 	while (fd_i2c < 0)
 	{
 		fd_i2c = wiringPiI2CSetup(0x0d);
@@ -73,15 +97,15 @@ int main(void)
 	// 关闭RGB灯特效
 	wiringPiI2CWriteReg8(fd_i2c, 0x07, 0x00);
 	// wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x00);   // close fan
-	ssd1306_display(); //show logo
-	// ssd1306_clearDisplay();
+	// ssd1306_display(); //show logo
+	ssd1306_clearDisplay();
 	// delay(500);
 	printf("init ok!\n");
 
 	while (1)
 	{
 		// 读取系统信息
-		delay(900);
+		// delay(900);
 		if (sysinfo(&sys_info) != 0) // sysinfo(&sys_info) != 0
 		{
 			printf("sysinfo-Error\n");
@@ -95,7 +119,10 @@ int main(void)
 		{
 			// 清除屏幕内容
 			ssd1306_clearDisplay();
-
+			time_t curenttime;
+			time(&curenttime);
+			char Now[MAX_SIZE];
+			sprintf(Now, "%s", ctime(&curenttime));
 			// CPU占用率
 			char CPUInfo[MAX_SIZE] = {0};
 			// unsigned long avgCpuLoad = sys_info.loads[0] / 1000;
@@ -141,8 +168,8 @@ int main(void)
 			unsigned long freeRam = sys_info.freeram >> 18;
 			// unsigned long totalRam = sys_info.totalram >> 20;
 			// unsigned long freeRam = sys_info.freeram >> 20;
-			sprintf(RamInfo, "RAM:%ld/%ld GB", freeRam, totalRam);
-
+			// sprintf(RamInfo, "RAM:%ld/%ld GB", freeRam, totalRam);
+			sprintf(RamInfo, "FM:%.0f%%", (float)freeRam / totalRam * 100);
 			// 获取IP地址
 			char IPInfo[MAX_SIZE];
 			if (readed_ip == 0)
@@ -157,7 +184,7 @@ int main(void)
 
 						if (strcmp(ifAddrStruct->ifa_name, "eth0") == 0)
 						{
-							sprintf(IPInfo, "eth0:%s", addressBuffer);
+							sprintf(IPInfo, "Eth0:%s", addressBuffer);
 							readed_ip = 1;
 							break;
 						}
@@ -170,6 +197,7 @@ int main(void)
 						else
 						{
 							readed_ip = 0;
+							sprintf(IPInfo, "NoIP:%s", "0");
 						}
 					}
 					ifAddrStruct = ifAddrStruct->ifa_next;
@@ -244,20 +272,28 @@ int main(void)
 			size_t mbTotalsize = totalSize >> 30;
 			unsigned long long freeDisk = disk_info.f_bfree * totalBlocks;
 			size_t mbFreedisk = freeDisk >> 30;
-			sprintf(DiskInfo, "Disk:%ld/%ldGB", mbFreedisk, mbTotalsize);
+			// sprintf(DiskInfo, "Disk:%ld/%ldGB", mbFreedisk, mbTotalsize);
+			sprintf(DiskInfo, "FreeDisk:%.0f%%", (float)mbFreedisk / mbTotalsize * 100);
 
 			// 在显示屏上要显示的内容
 			ssd1306_drawText(0, 0, CPUInfo);
 			ssd1306_drawText(56, 0, CPUTemp);
 			ssd1306_drawText(0, 8, RamInfo);
+			// ssd1306_drawText(0, 8, Now);
 			ssd1306_drawText(0, 16, DiskInfo);
 			ssd1306_drawText(0, 24, IPInfo);
 
 			// 刷新显示
 			ssd1306_display();
-			delay(10);
+			// ssd1306_startscrollright(0x00, 0x0F);
+			// delay(4060);
+			// ssd1306_stopscroll();
+			// delay(500);
+			ssd1306_startscrollleft(0x00, 0x0F);
+			delay(4060);
+			ssd1306_stopscroll();
 		}
-
+		ssd1306_clearDisplay();
 		if (raspi_version == 4)
 		{
 			if (temp >= 55)
@@ -268,7 +304,16 @@ int main(void)
 					fan_state = 1;
 				}
 			}
-			else if (temp <= 48)
+			else if (20 < temp <= 54)
+			{
+				if (fan_state != 3)
+				{
+					// wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x01);
+					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x04);
+					fan_state = 3;
+				}
+			}
+			else if (temp <= 20)
 			{
 				if (fan_state != 0)
 				{
@@ -355,6 +400,6 @@ int main(void)
 			wiringPiI2CWriteReg8(fd_i2c, 0x07, 0x00);
 		}
 	}
-
+	//atexit(onexit);
 	return 0;
 }
