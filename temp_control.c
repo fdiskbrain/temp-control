@@ -304,16 +304,34 @@ int main(void)
 					fan_state = 1;
 				}
 			}
-			else if (20 < temp <= 54)
+			else if ( 40 < temp <= 54)
+			{
+				if (fan_state != 7)
+				{
+					// wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x01);
+					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x07);
+					fan_state = 7;
+				}
+			}
+			else if ( 35 < temp <= 40)
+			{
+				if (fan_state != 4)
+				{
+					// wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x01);
+					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x04);
+					fan_state = 4;
+				}
+			}
+			else if ( 25 < temp <= 35)
 			{
 				if (fan_state != 3)
 				{
 					// wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x01);
-					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x04);
+					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x03);
 					fan_state = 3;
 				}
 			}
-			else if (temp <= 20)
+			else if (temp <= 25)
 			{
 				if (fan_state != 0)
 				{
