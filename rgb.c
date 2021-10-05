@@ -23,7 +23,7 @@ int main(void)
     closeRGB();
     delay(1);
     setRGB(Max_LED, 0, 255, 0);
-    closeRGB();
+    // closeRGB();
     return 0;
 }
 
