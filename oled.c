@@ -69,7 +69,7 @@ int main(void)
 		{
 			// 清除屏幕内容
 			ssd1306_clearDisplay();
-
+			// delay(500);
 			// CPU占用率
 			char CPUInfo[MAX_SIZE];
 			//unsigned long avgCpuLoad = sys_info.loads[0] / 1000;
@@ -86,7 +86,7 @@ int main(void)
 				*/
 				// 第一次读取数据
 				fgets(buf_cpu, sizeof(buf_cpu), fp_CPUusage);
-				sscanf(buf_cpu,"%s%d%d%d%d%d%d%d",cpu,&user,&nice,&sys,&idle,&iowait,&irq,&softirq);
+				sscanf(buf_cpu, "%s%d%d%d%d%d%d%d", cpu, &user, &nice, &sys, &idle, &iowait, &irq, &softirq);
 				total_1 = user + nice + sys + idle + iowait + irq + softirq;
 				idle_1 = idle;
 				rewind(fp_CPUusage);
@@ -99,22 +99,22 @@ int main(void)
 
 				// 第二次读取数据
 				fgets(buf_cpu, sizeof(buf_cpu), fp_CPUusage);
-				sscanf(buf_cpu,"%s%d%d%d%d%d%d%d",cpu,&user,&nice,&sys,&idle,&iowait,&irq,&softirq);
+				sscanf(buf_cpu, "%s%d%d%d%d%d%d%d", cpu, &user, &nice, &sys, &idle, &iowait, &irq, &softirq);
 				total_2 = user + nice + sys + idle + iowait + irq + softirq;
 				idle_2 = idle;
 
-				usage = (float)(total_2-total_1-(idle_2-idle_1)) / (total_2-total_1)*100;
+				usage = (float)(total_2 - total_1 - (idle_2 - idle_1)) / (total_2 - total_1) * 100;
 				sprintf(CPUInfo, "CPU:%.0f%%", usage);
 				//printf("cpu:%.0f%%\n", usage);
 				fclose(fp_CPUusage);
 			}
-			
 
 			// 运行内存剩余量，剩余/总内存
 			char RamInfo[MAX_SIZE];
-			unsigned long totalRam = sys_info.totalram >> 20;
-			unsigned long freeRam = sys_info.freeram >> 20;
-			sprintf(RamInfo, "RAM:%ld/%ld MB", freeRam, totalRam);
+			unsigned long totalRam = sys_info.totalram;
+			unsigned long freeRam = sys_info.freeram;
+			// sprintf(RamInfo, "RAM:%ld/%ld MB %.0f%%", freeRam, totalRam, (float)freeRam / totalRam * 100);
+			sprintf(RamInfo, "Free Mem:%.0f%%", (float)freeRam / totalRam * 100);
 
 			// 获取IP地址
 			char IPInfo[MAX_SIZE];
@@ -128,7 +128,7 @@ int main(void)
 
 					if (strcmp(ifAddrStruct->ifa_name, "eth0") == 0)
 					{
-						sprintf(IPInfo, "eth0:IP:%s", addressBuffer);
+						sprintf(IPInfo, "Eth0:%s", addressBuffer);
 						break;
 					}
 					else if (strcmp(ifAddrStruct->ifa_name, "wlan0") == 0)
@@ -171,22 +171,30 @@ int main(void)
 			statfs("/", &disk_info);
 			unsigned long long totalBlocks = disk_info.f_bsize;
 			unsigned long long totalSize = totalBlocks * disk_info.f_blocks;
-			size_t mbTotalsize = totalSize >> 20;
+			size_t mbTotalsize = totalSize >> 30;
 			unsigned long long freeDisk = disk_info.f_bfree * totalBlocks;
-			size_t mbFreedisk = freeDisk >> 20;
-			sprintf(DiskInfo, "Disk:%ld/%ldMB", mbFreedisk, mbTotalsize);
+			size_t mbFreedisk = freeDisk >> 30;
+			sprintf(DiskInfo, "Free Disk:%.0f%%", (float)mbFreedisk / mbTotalsize * 100);
+			// sprintf(DiskInfo, "Disk:%ld/%ldGB", mbFreedisk, mbTotalsize);
 
 			// 在显示屏上要显示的内容
+
 			ssd1306_drawText(0, 0, CPUInfo);
-			ssd1306_drawText(56, 0, CPUTemp);
+			ssd1306_drawText(60, 0, CPUTemp);
 			ssd1306_drawText(0, 8, RamInfo);
 			ssd1306_drawText(0, 16, DiskInfo);
 			ssd1306_drawText(0, 24, IPInfo);
-
 			// 刷新显示
 			ssd1306_display();
+			// ssd1306_startscrollright(0x00, 0x0F);
+			// delay(4060);
+			// ssd1306_stopscroll();
+			// delay(500);
+			ssd1306_startscrollleft(0x00, 0x0F);
+			delay(4060);
+			ssd1306_stopscroll();
 		}
-		//delay(500);
+		delay(500);
 	}
 
 	return 0;
