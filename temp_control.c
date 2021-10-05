@@ -23,14 +23,23 @@
 #include <sys/vfs.h>
 #include <unistd.h>
 #include <time.h>
-
+#include <syslog.h>
+// rgb
+#define MAX_SIZE 20
+#define Max_LED 3
+//
 #define CPU_USAGE_PATH "/proc/stat"
 #define HARDWARE_PATH "/proc/device-tree/model"
 #define TEMP_PATH "/sys/class/thermal/thermal_zone0/temp"
 #define MAX_SIZE 32
+int fd_i2c;
+void setRGB(int num, int R, int G, int B);
+void closeRGB();
 // 退出处理
 void onexit(int sig)
 {
+	wiringPiSetup();
+	fd_i2c = wiringPiI2CSetup(0x0d);
 	ssd1306_begin(SSD1306_SWITCHCAPVCC, SSD1306_I2C_ADDRESS);
 	//   ssd1306_stopscroll();
 	//	ssd1306_display();
@@ -38,7 +47,9 @@ void onexit(int sig)
 
 	ssd1306_clearDisplay();
 	ssd1306_display();
+	wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x00);
 	printf("%s", "exit ok");
+	syslog(LOG_INFO,"Exit clean");
 	exit(0);
 }
 void reload(int sig)
@@ -56,7 +67,8 @@ int main(void)
 	int fd_temp;
 	int fd_hardware;	   // 保存查询到的树莓派硬件版本信息
 	int raspi_version = 0; // 4:树莓派4B， 3:树莓派3B/3B+  0：无法识别或其他版本
-	double temp = 0, fan_state = 2;
+	double temp = 0, level_temp = 0;
+	int fan_state = 99;
 	char buf[MAX_SIZE];
 
 	char buf_cpu[128];
@@ -78,7 +90,7 @@ int main(void)
 	ssd1306_begin(SSD1306_SWITCHCAPVCC, SSD1306_I2C_ADDRESS);
 
 	// 定义I2C相关参数
-	int fd_i2c;
+
 	wiringPiSetup();
 	fd_i2c = wiringPiI2CSetup(0x0d);
 	signal(SIGTERM, onexit);
@@ -96,12 +108,12 @@ int main(void)
 
 	// 关闭RGB灯特效
 	wiringPiI2CWriteReg8(fd_i2c, 0x07, 0x00);
-	// wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x00);   // close fan
+	wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x00); // close fan
 	// ssd1306_display(); //show logo
 	ssd1306_clearDisplay();
 	// delay(500);
 	printf("init ok!\n");
-
+    syslog(LOG_INFO,"Init ok");
 	while (1)
 	{
 		// 读取系统信息
@@ -294,52 +306,59 @@ int main(void)
 			ssd1306_stopscroll();
 		}
 		ssd1306_clearDisplay();
+		//		printf("pi version %d!\n", raspi_version);
+
+		// fan control
 		if (raspi_version == 4)
 		{
-			if (temp >= 55)
+			if (abs(temp - level_temp) >= 5)
 			{
-				if (fan_state != 1)
+
+				if (temp <= 35)
 				{
-					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x01);
-					fan_state = 1;
-				}
-			}
-			else if ( 40 < temp <= 54)
-			{
-				if (fan_state != 7)
-				{
-					// wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x01);
-					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x07);
-					fan_state = 7;
-				}
-			}
-			else if ( 35 < temp <= 40)
-			{
-				if (fan_state != 4)
-				{
-					// wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x01);
-					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x04);
-					fan_state = 4;
-				}
-			}
-			else if ( 25 < temp <= 35)
-			{
-				if (fan_state != 3)
-				{
-					// wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x01);
-					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x03);
-					fan_state = 3;
-				}
-			}
-			else if (temp <= 25)
-			{
-				if (fan_state != 0)
-				{
-					// wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x01);
+					level_temp = 35;
 					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x00);
 					fan_state = 0;
 				}
+
+				else if (temp <= 40)
+				{
+					level_temp = 40;
+					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x00);
+					fan_state = 1;
+				}
+				else if (temp <= 45)
+				{
+					level_temp = 45;
+					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x04);
+					fan_state = 2;
+				}
+				else if (temp <= 49)
+				{
+					level_temp = 49;
+					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x06);
+					fan_state = 3;
+				}
+				else if (temp <= 51)
+				{
+					level_temp = 51;
+					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x08);
+					fan_state = 4;
+				}
+				else if (temp <= 53)
+				{
+					level_temp = 53;
+					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x09);
+					fan_state = 5;
+				}
+				else
+				{
+					level_temp = 55;
+					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x01);
+					fan_state = 6;
+				}
 			}
+			syslog(LOG_INFO|LOG_USER,"pi %d; fan: %d;temp: %.1f\n", raspi_version, fan_state, temp);
 		}
 		else if (raspi_version == 3)
 		{
@@ -383,6 +402,7 @@ int main(void)
 		// RBG
 		if (rgbclose == 0)
 		{
+			/*
 			if (count == 10)
 			{
 				// 开启RGB灯特效
@@ -410,7 +430,65 @@ int main(void)
 			}
 
 			count++;
+			*/
 			// delay(500);
+			// rgb temp
+			if (abs(temp - level_temp) >= 1)
+			{
+				if (temp <= 45)
+				{
+					level_temp = 45;
+					setRGB(Max_LED, 0x00, 0x00, 0xff);
+				}
+				else if (temp <= 47)
+				{
+					level_temp = 47;
+					setRGB(Max_LED, 0x1e, 0x90, 0xff);
+				}
+				else if (temp <= 49)
+				{
+					level_temp = 49;
+					setRGB(Max_LED, 0x00, 0xbf, 0xff);
+				}
+				else if (temp <= 51)
+				{
+					level_temp = 51;
+					setRGB(Max_LED, 0x5f, 0x9e, 0xa0);
+				}
+
+				else if (temp <= 53)
+				{
+					level_temp = 53;
+					setRGB(Max_LED, 0xff, 0xff, 0x00);
+				}
+				else if (temp <= 55)
+				{
+					level_temp = 55;
+					setRGB(Max_LED, 0xff, 0xd7, 0x00);
+				}
+				else if (temp <= 57)
+				{
+					level_temp = 57;
+					setRGB(Max_LED, 0xff, 0xa5, 0x00);
+				}
+				else if (temp <= 59)
+				{
+					level_temp = 59;
+					setRGB(Max_LED, 0xff, 0x8c, 0x00);
+				}
+
+				else if (temp <= 61)
+				{
+					level_temp = 61;
+					setRGB(Max_LED, 0xff, 0x45, 0x00);
+				}
+				else if (temp >= 63)
+				{
+					level_temp = 63;
+					setRGB(Max_LED, 0xff, 0x00, 0x00);
+				}
+			}
+			delay(500);
 		}
 		else
 		{
@@ -420,4 +498,30 @@ int main(void)
 	}
 	//atexit(onexit);
 	return 0;
+}
+// 设置RGB灯,num如果大于等于Max_LED（3），则全部灯一起设置
+// num=(0~3),R=(0~255),G=(0~255),B=(0~255)
+void setRGB(int num, int R, int G, int B)
+{
+	if (num >= Max_LED)
+	{
+		wiringPiI2CWriteReg8(fd_i2c, 0x00, 0xff);
+		wiringPiI2CWriteReg8(fd_i2c, 0x01, R);
+		wiringPiI2CWriteReg8(fd_i2c, 0x02, G);
+		wiringPiI2CWriteReg8(fd_i2c, 0x03, B);
+	}
+	else if (num >= 0)
+	{
+		wiringPiI2CWriteReg8(fd_i2c, 0x00, num);
+		wiringPiI2CWriteReg8(fd_i2c, 0x01, R);
+		wiringPiI2CWriteReg8(fd_i2c, 0x02, G);
+		wiringPiI2CWriteReg8(fd_i2c, 0x03, B);
+	}
+}
+
+// 关闭RGB
+void closeRGB()
+{
+	wiringPiI2CWriteReg8(fd_i2c, 0x07, 0x00);
+	delay(10);
 }
