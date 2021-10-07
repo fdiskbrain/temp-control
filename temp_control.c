@@ -24,18 +24,10 @@
 #include <unistd.h>
 #include <time.h>
 #include <syslog.h>
-// rgb
-#define MAX_SIZE 20
-#define Max_LED 3
-//
-#define CPU_USAGE_PATH "/proc/stat"
-#define HARDWARE_PATH "/proc/device-tree/model"
-#define TEMP_PATH "/sys/class/thermal/thermal_zone0/temp"
-#define MAX_SIZE 32
-int fd_i2c;
-void setRGB(int num, int R, int G, int B);
-void closeRGB();
+#include <temp_control.h>
+#include <unistd.h>
 // 退出处理
+
 void onexit(int sig)
 {
 	wiringPiSetup();
@@ -49,7 +41,7 @@ void onexit(int sig)
 	ssd1306_display();
 	wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x00);
 	printf("%s", "exit ok");
-	syslog(LOG_INFO,"Exit clean");
+	syslog(LOG_INFO, "Exit clean");
 	exit(0);
 }
 void reload(int sig)
@@ -61,6 +53,7 @@ void reload(int sig)
 int main(void)
 {
 
+	daemon(0, 0);
 	int readed_ip = 0;
 	int count = 0;
 	int rgbclose = 1; // 1 close rgb,0 open rgb
@@ -113,7 +106,7 @@ int main(void)
 	ssd1306_clearDisplay();
 	// delay(500);
 	printf("init ok!\n");
-    syslog(LOG_INFO,"Init ok");
+	syslog(LOG_INFO, "Init ok");
 	while (1)
 	{
 		// 读取系统信息
@@ -358,7 +351,7 @@ int main(void)
 					fan_state = 6;
 				}
 			}
-			syslog(LOG_INFO|LOG_USER,"pi %d; fan: %d;temp: %.1f\n", raspi_version, fan_state, temp);
+			syslog(LOG_INFO | LOG_USER, "pi %d; fan: %d;temp: %.1f\n", raspi_version, fan_state, temp);
 		}
 		else if (raspi_version == 3)
 		{
