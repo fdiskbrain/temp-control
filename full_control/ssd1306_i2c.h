@@ -30,7 +30,7 @@ All text above, and the splash screen must be included in any redistribution
 #define WHITE 1
 #define INVERSE 2
 
-#define SSD1306_I2C_ADDRESS   0x3C	// 011110+SA0+RW - 0x3C or 0x3D
+#define SSD1306_I2C_ADDRESS 0x3C // 011110+SA0+RW - 0x3C or 0x3D
 // Address for 128x32 is 0x3C
 // Address for 128x64 is 0x3D (default) or 0x3C (if SA0 is grounded)
 
@@ -54,38 +54,38 @@ All text above, and the splash screen must be included in any redistribution
 /*=========================================================================*/
 
 #if defined SSD1306_128_32
-        #define WIDTH 128
-        #define HEIGHT 32
+#define WIDTH 128
+#define HEIGHT 32
 #endif
 
 #if defined SSD1306_128_64
-        #define WIDTH 128
-        #define HEIGHT 64
+#define WIDTH 128
+#define HEIGHT 64
 #endif
 
 #if defined SSD1306_96_16
-        #define WIDTH 96
-        #define HEIGHT 16
+#define WIDTH 96
+#define HEIGHT 16
 #endif
 
 #if defined SSD1306_128_64 && defined SSD1306_128_32
-        #error "Only one SSD1306 display can be specified at once in SSD1306.h"
+#error "Only one SSD1306 display can be specified at once in SSD1306.h"
 #endif
 #if !defined SSD1306_128_64 && !defined SSD1306_128_32 && !defined SSD1306_96_16
-        #error "At least one SSD1306 display must be specified in SSD1306.h"
+#error "At least one SSD1306 display must be specified in SSD1306.h"
 #endif
 
 #if defined SSD1306_128_64
-        #define SSD1306_LCDWIDTH                  128
-        #define SSD1306_LCDHEIGHT                 64
+#define SSD1306_LCDWIDTH 128
+#define SSD1306_LCDHEIGHT 64
 #endif
 #if defined SSD1306_128_32
-        #define SSD1306_LCDWIDTH                  128
-        #define SSD1306_LCDHEIGHT                 32
+#define SSD1306_LCDWIDTH 128
+#define SSD1306_LCDHEIGHT 32
 #endif
 #if defined SSD1306_96_16
-        #define SSD1306_LCDWIDTH                  96
-        #define SSD1306_LCDHEIGHT                 16
+#define SSD1306_LCDWIDTH 96
+#define SSD1306_LCDHEIGHT 16
 #endif
 
 #define SSD1306_SETCONTRAST 0x81
@@ -113,7 +113,7 @@ All text above, and the splash screen must be included in any redistribution
 
 #define SSD1306_MEMORYMODE 0x20
 #define SSD1306_COLUMNADDR 0x21
-#define SSD1306_PAGEADDR   0x22
+#define SSD1306_PAGEADDR 0x22
 
 #define SSD1306_COMSCANINC 0xC0
 #define SSD1306_COMSCANDEC 0xC8
@@ -161,5 +161,5 @@ void ssd1306_setTextSize(int s);
 void ssd1306_drawString(char *str);
 void ssd1306_drawText(int x, int y, char *str);
 void ssd1306_drawChar(int x, int y, unsigned char c, int color, int size);
-
-#endif				/* _SSD1306_I2C_H_ */
+void swap_values(int x, int y);
+#endif /* _SSD1306_I2C_H_ */

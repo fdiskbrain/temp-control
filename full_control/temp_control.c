@@ -40,9 +40,8 @@ void onexit(int sig)
 	ssd1306_clearDisplay();
 	ssd1306_display();
 	wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x00);
-	printf("%s", "exit ok");
-	syslog(LOG_INFO, "Exit clean");
-	delay(500);
+	syslog(LOG_INFO, "clean and exit ");
+	delay(2000);
 	exit(0);
 }
 void reload(int sig)
@@ -54,6 +53,7 @@ void reload(int sig)
 int main(void)
 {
 	printf("Starting\n");
+	syslog(LOG_INFO, "starting fan controller");
 	if (daemon(0, 0) != 0)
 	{
 		exit(EXIT_FAILURE);
@@ -64,7 +64,7 @@ int main(void)
 	int fd_temp;
 	int fd_hardware;	   // 保存查询到的树莓派硬件版本信息
 	int raspi_version = 0; // 4:树莓派4B， 3:树莓派3B/3B+  0：无法识别或其他版本
-	double temp = 0, level_temp = 0;
+	double temp = 0, last_temp = 0;
 	int fan_state = 99; // init state 99
 	char buf[MAX_SIZE];
 
@@ -308,54 +308,12 @@ int main(void)
 		// fan control
 		if (raspi_version == 4)
 		{
-			if (abs(temp - level_temp) >= 3)
+			if (abs(temp - last_temp) > 3.0) // 检查温度偏差小于4度不做改变状态
 			{
-
-				if (temp <= 35)
-				{
-					level_temp = 35;
-					setFan(FAN_SPEED_CLOSE);
-					fan_state = 1;
-				}
-
-				else if (temp <= 40)
-				{
-					level_temp = 40;
-					setFan(FAN_SPEED_PCT_40);
-					fan_state = 1;
-				}
-				else if (temp <= 45)
-				{
-					level_temp = 45;
-					setFan(FAN_SPEED_PCT_60);
-					fan_state = 2;
-				}
-				else if (temp <= 49)
-				{
-					level_temp = 49;
-					setFan(FAN_SPEED_PCT_60);
-					fan_state = 3;
-				}
-				else if (temp <= 51)
-				{
-					level_temp = 51;
-					setFan(FAN_SPEED_PCT_80);
-					fan_state = 4;
-				}
-				else if (temp <= 53)
-				{
-					level_temp = 53;
-					setFan(FAN_SPEED_PCT_90);
-					fan_state = 5;
-				}
-				else
-				{
-					level_temp = 55;
-					setFan(FAN_SPEED_FULL);
-					fan_state = 6;
-				}
+				last_temp = temp;
+				fan_state = control_fan(temp);
 			}
-			syslog(LOG_INFO | LOG_USER, "pi %d; fan: %d;temp: %.1f\n", raspi_version, fan_state, temp);
+			syslog(LOG_INFO | LOG_USER, "pi %d; fan: %d;temperature: %.1f;last temperature: %.1f\n", raspi_version, fan_state, temp, last_temp);
 		}
 		else if (raspi_version == 3)
 		{
@@ -430,58 +388,58 @@ int main(void)
 			*/
 			// delay(500);
 			// rgb temp
-			if (abs(temp - level_temp) >= 1)
+			if (abs(temp - last_temp) >= 1)
 			{
 				if (temp <= 45)
 				{
-					level_temp = 45;
+					last_temp = 45;
 					setRGB(Max_LED, 0x00, 0x00, 0xff);
 				}
 				else if (temp <= 47)
 				{
-					level_temp = 47;
+					last_temp = 47;
 					setRGB(Max_LED, 0x1e, 0x90, 0xff);
 				}
 				else if (temp <= 49)
 				{
-					level_temp = 49;
+					last_temp = 49;
 					setRGB(Max_LED, 0x00, 0xbf, 0xff);
 				}
 				else if (temp <= 51)
 				{
-					level_temp = 51;
+					last_temp = 51;
 					setRGB(Max_LED, 0x5f, 0x9e, 0xa0);
 				}
 
 				else if (temp <= 53)
 				{
-					level_temp = 53;
+					last_temp = 53;
 					setRGB(Max_LED, 0xff, 0xff, 0x00);
 				}
 				else if (temp <= 55)
 				{
-					level_temp = 55;
+					last_temp = 55;
 					setRGB(Max_LED, 0xff, 0xd7, 0x00);
 				}
 				else if (temp <= 57)
 				{
-					level_temp = 57;
+					last_temp = 57;
 					setRGB(Max_LED, 0xff, 0xa5, 0x00);
 				}
 				else if (temp <= 59)
 				{
-					level_temp = 59;
+					last_temp = 59;
 					setRGB(Max_LED, 0xff, 0x8c, 0x00);
 				}
 
 				else if (temp <= 61)
 				{
-					level_temp = 61;
+					last_temp = 61;
 					setRGB(Max_LED, 0xff, 0x45, 0x00);
 				}
 				else if (temp >= 63)
 				{
-					level_temp = 63;
+					last_temp = 63;
 					setRGB(Max_LED, 0xff, 0x00, 0x00);
 				}
 			}
@@ -497,7 +455,7 @@ int main(void)
 	return 0;
 }
 // 设置RGB灯,num如果大于等于Max_LED（3），则全部灯一起设置
-// num=(0~3),R=(0~255),G=(0~255),B=(0~255)
+// num=(0 ~ 3),R=(0 ~ 255),G=(0 ~ 255),B=(0 ~ 255)
 void setRGB(int num, int R, int G, int B)
 {
 	if (num >= Max_LED)
@@ -515,13 +473,50 @@ void setRGB(int num, int R, int G, int B)
 		wiringPiI2CWriteReg8(fd_i2c, 0x03, B);
 	}
 }
-void setFan(int speed)
+int setFan(int speed)
 {
-	wiringPiI2CWriteReg8(fd_i2c, 0x08, speed);
+	wiringPiI2CWriteReg8(fd_i2c, CONTRORL_DEVICE_FAN, speed);
+	syslog(LOG_INFO, "Setting fan speed %d", speed);
+	return speed;
 }
 // 关闭RGB
 void closeRGB()
 {
-	wiringPiI2CWriteReg8(fd_i2c, 0x07, 0x00);
+	wiringPiI2CWriteReg8(fd_i2c, CONTRORL_DEVICE_RGB, 0x00);
 	delay(10);
+}
+
+int control_fan(double temperature)
+{
+	int level;
+	level = (int)(temperature / 5);
+	if (level < 6)
+	{
+		level = 5;
+	}
+	syslog(LOG_INFO, "temperature: %.1f;Fan level： %d", temperature, level);
+	switch (level)
+	{
+	case 5:
+		return setFan(FAN_SPEED_CLOSE);
+		break;
+	case 6: // 30
+		return setFan(FAN_SPEED_CLOSE);
+		break;
+	case 7: // 35
+		return setFan(FAN_SPEED_PCT_50);
+		break;
+	case 8: // 40
+		return setFan(FAN_SPEED_PCT_70);
+		break;
+	case 9: // 45
+		return setFan(FAN_SPEED_PCT_80);
+		break;
+	case 10: // 50
+		return setFan(FAN_SPEED_PCT_90);
+		break;
+	default:
+		return setFan(FAN_SPEED_FULL);
+		break;
+	}
 }

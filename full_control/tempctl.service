@@ -1,0 +1,13 @@
+[Unit]
+Description=Temperature control service
+Documentation=man:none
+After=network.target auditd.service
+
+[Service]
+User=root
+ExecStart=/usr/local/bin/temp_control
+
+[Install]
+WantedBy=multi-user.target
+Alias=tempctl.service
+
