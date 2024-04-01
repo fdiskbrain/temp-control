@@ -34,14 +34,15 @@ void onexit(int sig)
 	fd_i2c = wiringPiI2CSetup(0x0d);
 	ssd1306_begin(SSD1306_SWITCHCAPVCC, SSD1306_I2C_ADDRESS);
 	//   ssd1306_stopscroll();
-	//	ssd1306_display();
-	//	delay(5000);
+	//    ssd1306_display();
+	//    delay(5000);
 
 	ssd1306_clearDisplay();
 	ssd1306_display();
 	wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x00);
 	printf("%s", "exit ok");
 	syslog(LOG_INFO, "Exit clean");
+	delay(500);
 	exit(0);
 }
 void reload(int sig)
@@ -52,8 +53,11 @@ void reload(int sig)
 
 int main(void)
 {
-
-	daemon(0, 0);
+	printf("Starting\n");
+	if (daemon(0, 0) != 0)
+	{
+		exit(EXIT_FAILURE);
+	}
 	int readed_ip = 0;
 	int count = 0;
 	int rgbclose = 1; // 1 close rgb,0 open rgb
@@ -61,7 +65,7 @@ int main(void)
 	int fd_hardware;	   // 保存查询到的树莓派硬件版本信息
 	int raspi_version = 0; // 4:树莓派4B， 3:树莓派3B/3B+  0：无法识别或其他版本
 	double temp = 0, level_temp = 0;
-	int fan_state = 99;
+	int fan_state = 99; // init state 99
 	char buf[MAX_SIZE];
 
 	char buf_cpu[128];
@@ -105,8 +109,8 @@ int main(void)
 	// ssd1306_display(); //show logo
 	ssd1306_clearDisplay();
 	// delay(500);
-	printf("init ok!\n");
 	syslog(LOG_INFO, "Init ok");
+	printf("Init ok, start loop\n");
 	while (1)
 	{
 		// 读取系统信息
@@ -141,10 +145,10 @@ int main(void)
 			{
 				/* CPU使用率计算方式：usage = 100*(total-idle/total)
 				 * 通过两次获取/proc/stat的数据差得到total和idle
-				*/
+				 */
 				// 第一次读取数据
 				fgets(buf_cpu, sizeof(buf_cpu), fp_CPUusage);
-				sscanf(buf_cpu, "%s%d%d%d%d%d%d%d", cpu, &user, &nice, &sys, &idle, &iowait, &irq, &softirq);
+				sscanf(buf_cpu, "%s%ld%ld%ld%ld%ld%ld%ld", cpu, &user, &nice, &sys, &idle, &iowait, &irq, &softirq);
 				total_1 = user + nice + sys + idle + iowait + irq + softirq;
 				idle_1 = idle;
 				rewind(fp_CPUusage);
@@ -157,13 +161,13 @@ int main(void)
 
 				// 第二次读取数据
 				fgets(buf_cpu, sizeof(buf_cpu), fp_CPUusage);
-				sscanf(buf_cpu, "%s%d%d%d%d%d%d%d", cpu, &user, &nice, &sys, &idle, &iowait, &irq, &softirq);
+				sscanf(buf_cpu, "%s%ld%ld%ld%ld%ld%ld%ld", cpu, &user, &nice, &sys, &idle, &iowait, &irq, &softirq);
 				total_2 = user + nice + sys + idle + iowait + irq + softirq;
 				idle_2 = idle;
 
 				usage = (float)(total_2 - total_1 - (idle_2 - idle_1)) / (total_2 - total_1) * 100;
 				sprintf(CPUInfo, "CPU:%.0f%%", usage);
-				//printf("cpu:%.0f%%\n", usage);
+				// printf("cpu:%.0f%%\n", usage);
 				fclose(fp_CPUusage);
 			}
 
@@ -174,7 +178,7 @@ int main(void)
 			// unsigned long totalRam = sys_info.totalram >> 20;
 			// unsigned long freeRam = sys_info.freeram >> 20;
 			// sprintf(RamInfo, "RAM:%ld/%ld GB", freeRam, totalRam);
-			sprintf(RamInfo, "FM:%.0f%%", (float)freeRam / totalRam * 100);
+			sprintf(RamInfo, "FM:%.0f%% Fan: %d", (float)freeRam / totalRam * 100, fan_state);
 			// 获取IP地址
 			char IPInfo[MAX_SIZE];
 			if (readed_ip == 0)
@@ -299,55 +303,55 @@ int main(void)
 			ssd1306_stopscroll();
 		}
 		ssd1306_clearDisplay();
-		//		printf("pi version %d!\n", raspi_version);
+		//        printf("pi version %d!\n", raspi_version);
 
 		// fan control
 		if (raspi_version == 4)
 		{
-			if (abs(temp - level_temp) >= 5)
+			if (abs(temp - level_temp) >= 3)
 			{
 
 				if (temp <= 35)
 				{
 					level_temp = 35;
-					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x00);
-					fan_state = 0;
+					setFan(FAN_SPEED_CLOSE);
+					fan_state = 1;
 				}
 
 				else if (temp <= 40)
 				{
 					level_temp = 40;
-					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x00);
+					setFan(FAN_SPEED_PCT_40);
 					fan_state = 1;
 				}
 				else if (temp <= 45)
 				{
 					level_temp = 45;
-					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x04);
+					setFan(FAN_SPEED_PCT_60);
 					fan_state = 2;
 				}
 				else if (temp <= 49)
 				{
 					level_temp = 49;
-					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x06);
+					setFan(FAN_SPEED_PCT_60);
 					fan_state = 3;
 				}
 				else if (temp <= 51)
 				{
 					level_temp = 51;
-					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x08);
+					setFan(FAN_SPEED_PCT_80);
 					fan_state = 4;
 				}
 				else if (temp <= 53)
 				{
 					level_temp = 53;
-					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x09);
+					setFan(FAN_SPEED_PCT_90);
 					fan_state = 5;
 				}
 				else
 				{
 					level_temp = 55;
-					wiringPiI2CWriteReg8(fd_i2c, 0x08, 0x01);
+					setFan(FAN_SPEED_FULL);
 					fan_state = 6;
 				}
 			}
@@ -372,7 +376,7 @@ int main(void)
 				}
 			}
 		}
-		else //if (raspi_version == 0)
+		else // if (raspi_version == 0)
 		{
 			if (temp >= 55)
 			{
@@ -391,8 +395,8 @@ int main(void)
 				}
 			}
 		}
-		//delay(500);
-		// RBG
+		// delay(500);
+		//  RBG
 		if (rgbclose == 0)
 		{
 			/*
@@ -489,7 +493,7 @@ int main(void)
 			wiringPiI2CWriteReg8(fd_i2c, 0x07, 0x00);
 		}
 	}
-	//atexit(onexit);
+	// atexit(onexit);
 	return 0;
 }
 // 设置RGB灯,num如果大于等于Max_LED（3），则全部灯一起设置
@@ -511,7 +515,10 @@ void setRGB(int num, int R, int G, int B)
 		wiringPiI2CWriteReg8(fd_i2c, 0x03, B);
 	}
 }
-
+void setFan(int speed)
+{
+	wiringPiI2CWriteReg8(fd_i2c, 0x08, speed);
+}
 // 关闭RGB
 void closeRGB()
 {
