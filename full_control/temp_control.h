@@ -23,5 +23,18 @@ int fd_i2c;
 void setRGB(int num, int R, int G, int B);
 void closeRGB();
 int setFan(int speed);
-int control_fan(double temperature);
-enum fan_speed {CLOSE=0x00,FULL,PCT_10,PCT_20,PCT_30,PCT_40,PCT_50,PCT_60,PCT_70,PCT_80,PCT_90};
+int get_speed(double temperature);
+enum fan_speed
+{
+    CLOSE = 0x00,
+    FULL,
+    PCT_10,
+    PCT_20,
+    PCT_30,
+    PCT_40,
+    PCT_50,
+    PCT_60,
+    PCT_70,
+    PCT_80,
+    PCT_90
+};
